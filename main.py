@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import xlrd
 from openpyxl import Workbook
-from xlrd import open_workbook  # for read xlsx file
 
 #  time settings
 today = datetime.now()
@@ -36,68 +36,53 @@ class Driver:
 file = 'test.xlsx'
 
 # open file
-book = open_workbook(file)
+book = xlrd.open_workbook(file)
 sh = book.sheet_by_index(0)
+
 
 def check_correct_date():
     if str((sh.cell_value(0, 2)).split()[0]) != tomorrow.strftime("%d.%m.%Y"):
         print("Дата ТО в файле и завтрашняя дата не совпадают. Проверьте правильно ли скачан файл")
 
 
-def get_time_car_list(book) -> list:
-    pass
+def _get_car_number(string: str) -> str:
+    string = string.split()
+    for word in string:
+        if word[-1] in ("7", "9"):
+            result_car = word
+            return result_car
+    return ""
 
 
+def get_time_car_list(sheet) -> list:
+    result_list = []
 
-def get_driver_car_list(sheet) -> list:
-    sh = sheet.sheet_by_index(0)
-    result_list = [[], [], [], []]
+    for row in range(2, sheet.ncols - 1):
+        # get time
+        hour = int(sheet.cell_value(1, row)) if sheet.cell_value(1, row) != 42 else int(sheet.cell_value(1, row - 1))
+        minute = int(sheet.cell_value(2, row))
+        time = f'{hour:02d}:{minute:02d}'
 
-    for row in range(2, sh.ncols - 1):
-        # time add
-        hour = int(sh.cell_value(1, row)) if sh.cell_value(1, row) != 42 else int(sh.cell_value(1, row - 1))
-        minute = int(sh.cell_value(2, row))
-        result_list[0].append(f'{hour:02d}:{minute:02d}')
-
-        # car number add
+        # get car
         for j in (3, 4, 5):
-            result = ""
-            s = sh.cell_value(j, row)
-            if s != 42:
-                s = s.split()
-                for word in s:
-                    if word[-1] in ("7", "9"):
-                        result = word
-                        break
-            result_list[j - 2].append(result)
+            string = sh.cell_value(j, row)
+            if string != 42:  # xlrd print "42" in empty cell
+                result_car = _get_car_number(string)
+                result_list.append([time, result_car])
 
     return result_list
 
 
-def make_result_car_table(table):
-    new_table = []
-    for i in range(len(table[0])):
-        temp_list_number_car = []
-        temp_list_number_car.clear()
-        for j in (1, 2, 3):
-            if table[j][i] != '':
-                temp_list_number_car.append(table[j][i])
-
-        for car in temp_list_number_car:
-            new_table.append([table[0][i], car])
-    return new_table
-
-
-def write_to_driver_table(result_table: list[list[str]], name: str) -> None:
+def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
     # create file
     out_book = Workbook()
     sheet = out_book.active
 
     # заполняем таблицу
-    for i in range(1, len(result_table)+1):
+    for i in range(1, len(time_car_list) + 1):
         sheet.cell(column=1, row=i).value = DATE_TO
-        sheet.cell(column=2, row=i).value = result_table[i-1][0]
-        sheet.cell(column=3, row=i).value = result_table[i-1][1]
+        sheet.cell(column=2, row=i).value = time_car_list[i - 1][0]
+        sheet.cell(column=3, row=i).value = time_car_list[i - 1][1]
         sheet.cell(column=4, row=i).value = ''
         sheet.cell(column=5, row=i).value = ''
         sheet.cell(column=6, row=i).value = name
@@ -110,6 +95,6 @@ def write_to_driver_table(result_table: list[list[str]], name: str) -> None:
 
 if __name__ == '__main__':
     check_correct_date()
-    res = make_result_car_table(get_driver_car_list(book))
+    res = get_time_car_list(sh)
     print(res)
     write_to_driver_table(res, "dj")
