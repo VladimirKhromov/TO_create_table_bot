@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+# import requests
+import urllib
 from datetime import datetime, timedelta
 from functools import wraps
 
 import telebot
 import xlrd
 from openpyxl import Workbook
+from telebot.types import InputFile
 
 from settings import token, users_id
 
@@ -15,20 +18,8 @@ tomorrow = datetime.now() + timedelta(days=1)
 DATE_TO = tomorrow.strftime("%d.%m")
 DATE_CALL = today.strftime("%d.%m")
 
+
 # Excel work
-
-# file name
-file = 'test.xlsx'
-
-# open file
-book = xlrd.open_workbook(file)
-sh = book.sheet_by_index(0)
-
-
-def check_correct_date():
-    if str((sh.cell_value(0, 2)).split()[0]) != tomorrow.strftime("%d.%m.%Y"):
-        print("Дата ТО в файле и завтрашняя дата не совпадают. Проверьте правильно ли скачан файл")
-
 
 def _get_car_number(string: str) -> str:
     string = string.split()
@@ -50,7 +41,7 @@ def get_time_car_list(sheet) -> list:
 
         # get car
         for j in (3, 4, 5):
-            string = sh.cell_value(j, row)
+            string = sheet.cell_value(j, row)  # sheet --> sh
             if string != 42:  # xlrd print "42" in empty cell
                 result_car = _get_car_number(string)
                 result_list.append([time, result_car])
@@ -82,6 +73,7 @@ def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
 
 bot = telebot.TeleBot(token)
 
+
 # Проверка пользователя
 def private_access():
     def deco_restrict(f):
@@ -92,7 +84,9 @@ def private_access():
                 return f(message, *args, **kwargs)
             else:
                 bot.reply_to(message, text=f'Who are you? {username} Keep on walking...')
+
         return f_restrict  # true decorator
+
     return deco_restrict
 
 
@@ -111,17 +105,37 @@ def send_welcome(message):
 @private_access()
 def default_command(message):
     file_name = message.document.file_name
-    file_id = message.document.file_id
     if file_name.split(".")[-1] != "xlsx":
         bot.send_message(message.chat.id, f"Файл {file_name} не является файлом xlsx, загрузите правильный файл")
         return
-    bot.send_message(message.chat.id, f"Файл {file_name} {file_id} получен")
+    bot.send_message(message.chat.id, f"Файл {file_name} получен")
 
-    # TO DO !!!
-    # check_correct_date()
-    # res = get_time_car_list(sh)
-    # print(res)
-    # write_to_driver_table(res, "dj")
+    # open file
+    file_info = bot.get_file(message.document.file_id)
+    xlsx_path = f'https://api.telegram.org/file/bot{token}/{file_info.file_path}'
+    file_name, headers = urllib.request.urlretrieve(xlsx_path)
+
+    book = xlrd.open_workbook(file_name)
+    sh = book.sheet_by_index(0)
+
+    # check_correct_date
+    if str((sh.cell_value(0, 2)).split()[0]) != tomorrow.strftime("%d.%m.%Y"):
+        bot.send_message(message.chat.id,
+                         "Дата ТО в файле и завтрашняя дата не совпадают. Проверьте правильно ли скачан файл")
+
+    # make result file
+    res = get_time_car_list(sh)
+    write_to_driver_table(res, "dj")
+
+    # return result file
+    bot.send_document(
+        message.chat.id,
+        InputFile("result.xlsx")
+    )
+
 
 if __name__ == '__main__':
     bot.infinity_polling()  # run bot
+
+    # TODO
+    # сохранение файла стразу в телеграм
