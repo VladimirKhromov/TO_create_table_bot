@@ -1,34 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from functools import wraps
 
+import telebot
 import xlrd
 from openpyxl import Workbook
+
+from settings import token, users_id
 
 #  time settings
 today = datetime.now()
 tomorrow = datetime.now() + timedelta(days=1)
 DATE_TO = tomorrow.strftime("%d.%m")
 DATE_CALL = today.strftime("%d.%m")
-
-
-# Класс работы с водителем
-
-class Driver:
-    """ Класс представления водителя. """
-
-    def __init__(self, car_number, time):
-        self.car_number = car_number
-        self.time = time
-        self.fio = None
-        self.phone_number = None
-
-    def get_driver_info(self):
-        info = [self.time, self.car_number, self.fio, self.phone_number]
-        return tuple([i for i in info if i])
-
-
-# работа с телеграм ботом
 
 # Excel work
 
@@ -93,8 +78,50 @@ def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
     out_book.close()
 
 
+# работа с телеграм ботом
+
+bot = telebot.TeleBot(token)
+
+# Проверка пользователя
+def private_access():
+    def deco_restrict(f):
+        @wraps(f)
+        def f_restrict(message, *args, **kwargs):
+            username = message.from_user.username
+            if username in users_id:
+                return f(message, *args, **kwargs)
+            else:
+                bot.reply_to(message, text=f'Who are you? {username} Keep on walking...')
+        return f_restrict  # true decorator
+    return deco_restrict
+
+
+# Handle '/start' and '/help'
+@bot.message_handler(commands=['help', 'start'])
+@private_access()
+def send_welcome(message):
+    bot.reply_to(message, """\
+Привет! Бот конвертирует список авто из 1с в список для обзвона.
+Просто пришлите xlsx файл из 1с мне.\
+""")
+
+
+# Handle all other messages with content_type 'text' (content_types defaults to ['text'])
+@bot.message_handler(func=lambda message: True, content_types=['document'])
+@private_access()
+def default_command(message):
+    file_name = message.document.file_name
+    file_id = message.document.file_id
+    if file_name.split(".")[-1] != "xlsx":
+        bot.send_message(message.chat.id, f"Файл {file_name} не является файлом xlsx, загрузите правильный файл")
+        return
+    bot.send_message(message.chat.id, f"Файл {file_name} {file_id} получен")
+
+    # TO DO !!!
+    # check_correct_date()
+    # res = get_time_car_list(sh)
+    # print(res)
+    # write_to_driver_table(res, "dj")
+
 if __name__ == '__main__':
-    check_correct_date()
-    res = get_time_car_list(sh)
-    print(res)
-    write_to_driver_table(res, "dj")
+    bot.infinity_polling()  # run bot
