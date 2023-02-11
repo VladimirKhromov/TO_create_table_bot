@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-# import requests
-import urllib
 from datetime import datetime, timedelta
 from functools import wraps
+from urllib import request
 
-import telebot
-import xlrd
-from openpyxl import Workbook
+import telebot  # pyTelegramBotAPI
+import xlrd  # read old version .xlsx files
+from openpyxl import Workbook  # create and save .xlsx file
 from telebot.types import InputFile
 
 from settings import token, users_id
@@ -19,9 +18,10 @@ DATE_TO = tomorrow.strftime("%d.%m")
 DATE_CALL = today.strftime("%d.%m")
 
 
-# Excel work
+# EXCEL
 
 def _get_car_number(string: str) -> str:
+    """ Find and return car number in str. """
     string = string.split()
     for word in string:
         if word[-1] in ("7", "9"):
@@ -30,7 +30,8 @@ def _get_car_number(string: str) -> str:
     return ""
 
 
-def get_time_car_list(sheet) -> list:
+def get_time_car_list(sheet: Workbook.active) -> list[list[str]]:
+    """ """
     result_list = []
 
     for row in range(2, sheet.ncols - 1):
@@ -40,8 +41,8 @@ def get_time_car_list(sheet) -> list:
         time = f'{hour:02d}:{minute:02d}'
 
         # get car
-        for j in (3, 4, 5):
-            string = sheet.cell_value(j, row)  # sheet --> sh
+        for i in (3, 4, 5):
+            string = sheet.cell_value(i, row)  # sheet --> sh
             if string != 42:  # xlrd print "42" in empty cell
                 result_car = _get_car_number(string)
                 result_list.append([time, result_car])
@@ -54,7 +55,7 @@ def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
     out_book = Workbook()
     sheet = out_book.active
 
-    # заполняем таблицу
+    # create table
     for i in range(1, len(time_car_list) + 1):
         sheet.cell(column=1, row=i).value = DATE_TO
         sheet.cell(column=2, row=i).value = time_car_list[i - 1][0]
@@ -64,29 +65,28 @@ def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
         sheet.cell(column=6, row=i).value = name
         sheet.cell(column=7, row=i).value = DATE_CALL
 
-    # сохраняем таблицу
+    # save table
     out_book.save("result.xlsx")
     out_book.close()
 
 
-# работа с телеграм ботом
+# TELEBOT
 
 bot = telebot.TeleBot(token)
 
 
-# Проверка пользователя
 def private_access():
-    def deco_restrict(f):
-        @wraps(f)
+    """ decorate for user verification. """
+
+    def deco_restrict(func):
+        @wraps(func)
         def f_restrict(message, *args, **kwargs):
-            username = message.from_user.username
-            if username in users_id:
-                return f(message, *args, **kwargs)
+            user = message.from_user.id
+            if user in users_id:
+                return func(message, *args, **kwargs)
             else:
-                bot.reply_to(message, text=f'Who are you? {username} Keep on walking...')
-
+                bot.reply_to(message, text=f'Who are you? Keep on walking...')
         return f_restrict  # true decorator
-
     return deco_restrict
 
 
@@ -100,12 +100,13 @@ def send_welcome(message):
 """)
 
 
-# Handle all other messages with content_type 'text' (content_types defaults to ['text'])
+# Handle sent .xlsx document
 @bot.message_handler(func=lambda message: True, content_types=['document'])
 @private_access()
 def default_command(message):
     file_name = message.document.file_name
-    if file_name.split(".")[-1] != "xlsx":
+    file_extension = file_name.split(".")[-1]
+    if file_extension.lower() != "xlsx":
         bot.send_message(message.chat.id, f"Файл {file_name} не является файлом xlsx, загрузите правильный файл")
         return
     bot.send_message(message.chat.id, f"Файл {file_name} получен")
@@ -113,29 +114,27 @@ def default_command(message):
     # open file
     file_info = bot.get_file(message.document.file_id)
     xlsx_path = f'https://api.telegram.org/file/bot{token}/{file_info.file_path}'
-    file_name, headers = urllib.request.urlretrieve(xlsx_path)
+    file, headers = request.urlretrieve(xlsx_path)
 
-    book = xlrd.open_workbook(file_name)
-    sh = book.sheet_by_index(0)
+    book = xlrd.open_workbook(file)
+    sheet = book.sheet_by_index(0)
 
     # check_correct_date
-    if str((sh.cell_value(0, 2)).split()[0]) != tomorrow.strftime("%d.%m.%Y"):
+    data_in_file = str((sheet.cell_value(0, 2)).split()[0])
+    if data_in_file != tomorrow.strftime("%d.%m.%Y"):
         bot.send_message(message.chat.id,
-                         "Дата ТО в файле и завтрашняя дата не совпадают. Проверьте правильно ли скачан файл")
+                         "‼️❗️‼️❗️‼️❗️‼️\nДата ТО в файле и завтрашняя дата не совпадают. "
+                         "Проверьте правильно ли скачан файл")
 
     # make result file
-    res = get_time_car_list(sh)
-    write_to_driver_table(res, "dj")
+    res = get_time_car_list(sheet)
+    write_to_driver_table(res, "")
 
     # return result file
     bot.send_document(
         message.chat.id,
-        InputFile("result.xlsx")
-    )
+        InputFile("result.xlsx"))
 
 
 if __name__ == '__main__':
     bot.infinity_polling()  # run bot
-
-    # TODO
-    # сохранение файла стразу в телеграм
