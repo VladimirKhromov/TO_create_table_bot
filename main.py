@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib import request
@@ -18,31 +19,34 @@ DATE_TO = tomorrow.strftime("%d.%m")
 DATE_CALL = today.strftime("%d.%m")
 
 
-# EXCEL
+# EXCEL ################################################################################################################
 
 def _get_car_number(string: str) -> str:
     """ Find and return car number in str. """
-    string = string.split()
-    for word in string:
-        if word[-1] in ("7", "9"):
-            result_car = word
-            return result_car
-    return ""
+    pattern = r"\w{1,2}\d{3}\w{0,2}\d{2,3}"  # А123ВС799 or АВ12377
+    match = re.search(pattern, string)
+    return match.group() if match else ""
+
+
+def _get_vehicle_inspection_time(column: int, sheet: Workbook.active) -> str:
+    value = sheet.cell_value
+    hour = int(value(1, column)) if value(1, column) != 42 else int(value(1, column - 1))
+    minute = int(value(2, column))
+    return f'{hour:02d}:{minute:02d}'
 
 
 def get_time_car_list(sheet: Workbook.active) -> list[list[str]]:
     """ """
     result_list = []
 
-    for row in range(2, sheet.ncols - 1):
+    for column in range(2, sheet.ncols - 1):
         # get time
-        hour = int(sheet.cell_value(1, row)) if sheet.cell_value(1, row) != 42 else int(sheet.cell_value(1, row - 1))
-        minute = int(sheet.cell_value(2, row))
-        time = f'{hour:02d}:{minute:02d}'
+        time = _get_vehicle_inspection_time(column, sheet)
 
         # get car
-        for i in (3, 4, 5):
-            string = sheet.cell_value(i, row)  # sheet --> sh
+        rows_with_car_numbers = (3, 4, 5)
+        for row in rows_with_car_numbers:
+            string = sheet.cell_value(row, column)  # sheet --> sh
             if string != 42:  # xlrd print "42" in empty cell
                 result_car = _get_car_number(string)
                 result_list.append([time, result_car])
@@ -50,7 +54,7 @@ def get_time_car_list(sheet: Workbook.active) -> list[list[str]]:
     return result_list
 
 
-def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
+def write_vehicle_inspection_driver_table(time_car_list: list[list[str]], name: str) -> None:
     # create file
     out_book = Workbook()
     sheet = out_book.active
@@ -70,7 +74,7 @@ def write_to_driver_table(time_car_list: list[list[str]], name: str) -> None:
     out_book.close()
 
 
-# TELEBOT
+# TELEBOT ##############################################################################################################
 
 bot = telebot.TeleBot(token)
 
@@ -86,7 +90,9 @@ def private_access():
                 return func(message, *args, **kwargs)
             else:
                 bot.reply_to(message, text=f'Who are you? Keep on walking...')
+
         return f_restrict  # true decorator
+
     return deco_restrict
 
 
@@ -128,7 +134,7 @@ def default_command(message):
 
     # make result file
     res = get_time_car_list(sheet)
-    write_to_driver_table(res, "")
+    write_vehicle_inspection_driver_table(res, "")
 
     # return result file
     bot.send_document(
