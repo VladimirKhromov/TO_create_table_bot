@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import tkinter as tk
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib import request
@@ -23,12 +24,13 @@ DATE_CALL = today.strftime("%d.%m")
 
 def _get_car_number(string: str) -> str:
     """ Find and return car number in str. """
-    pattern = r"\w{1,2}\d{3}\w{0,2}\d{2,3}"  # А123ВС799 or АВ12377
+    pattern = r"\w{1,2}\d{3}\w{0,2}\d{2,3}"  # example: А123ВС799 or АВ12377
     match = re.search(pattern, string)
     return match.group() if match else ""
 
 
-def _get_vehicle_inspection_time(column: int, sheet: Workbook.active) -> str:
+def get_vehicle_inspection_time(column: int, sheet: Workbook.active) -> str:
+    """ Return srt time from column. """
     value = sheet.cell_value
     hour = int(value(1, column)) if value(1, column) != 42 else int(value(1, column - 1))
     minute = int(value(2, column))
@@ -41,10 +43,10 @@ def get_time_car_list(sheet: Workbook.active) -> list[list[str]]:
 
     for column in range(2, sheet.ncols - 1):
         # get time
-        time = _get_vehicle_inspection_time(column, sheet)
+        time = get_vehicle_inspection_time(column, sheet)
 
         # get car
-        rows_with_car_numbers = (3, 4, 5)
+        rows_with_car_numbers = (3, 4, 5, 6)
         for row in rows_with_car_numbers:
             string = sheet.cell_value(row, column)  # sheet --> sh
             if string != 42:  # xlrd print "42" in empty cell
@@ -60,14 +62,14 @@ def write_vehicle_inspection_driver_table(time_car_list: list[list[str]], name: 
     sheet = out_book.active
 
     # create table
-    for i in range(1, len(time_car_list) + 1):
-        sheet.cell(column=1, row=i).value = DATE_TO
-        sheet.cell(column=2, row=i).value = time_car_list[i - 1][0]
-        sheet.cell(column=3, row=i).value = time_car_list[i - 1][1]
-        sheet.cell(column=4, row=i).value = ''
-        sheet.cell(column=5, row=i).value = ''
-        sheet.cell(column=6, row=i).value = name
-        sheet.cell(column=7, row=i).value = DATE_CALL
+    for rw in range(1, len(time_car_list) + 1):
+        sheet.cell(column=1, row=rw).value = DATE_TO
+        sheet.cell(column=2, row=rw).value = time_car_list[rw - 1][0]
+        sheet.cell(column=3, row=rw).value = time_car_list[rw - 1][1]
+        sheet.cell(column=4, row=rw).value = ''
+        sheet.cell(column=5, row=rw).value = ''
+        sheet.cell(column=6, row=rw).value = name
+        sheet.cell(column=7, row=rw).value = DATE_CALL
 
     # save table
     out_book.save("result.xlsx")
@@ -141,6 +143,8 @@ def default_command(message):
         message.chat.id,
         InputFile("result.xlsx"))
 
+def run_bot():
+    bot.infinity_polling()
 
-if __name__ == '__main__':
-    bot.infinity_polling()  # run bot
+if __name__ == "__main__":
+    bot.infinity_polling()
