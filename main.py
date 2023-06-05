@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import tkinter as tk
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib import request
@@ -143,8 +142,13 @@ def default_command(message):
         message.chat.id,
         InputFile("result.xlsx"))
 
+
 def run_bot():
-    bot.infinity_polling()
+    bot.polling()
+
+def stop_bot():
+    bot.stop_polling()
 
 if __name__ == "__main__":
-    bot.infinity_polling()
+    run_bot()
+
