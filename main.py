@@ -184,9 +184,18 @@ def process_files():
 @bot.message_handler(commands=['process', 'start'])
 @private_access()
 def process_message(message):
-    process_files()
-    # сделать
+    global xlsx_file, csv_files
 
+    if xlsx_file is None:
+        clear_files()
+        bot.send_message(message.chat.id, 'Не хватает XLSX файла из 1C. ')
+        return
+    elif len(csv_files) == 0:
+        bot.send_message(message.chat.id, 'Нет csv файлов')
+        return
+
+    # сделать SQL базу и 2 таблицы
+    process_files()
 
     bot.send_message(message.chat.id, 'Файлы обработаны.')
 
