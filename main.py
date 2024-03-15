@@ -3,12 +3,10 @@ from __future__ import annotations
 import re
 from datetime import datetime, timedelta
 from functools import wraps
-from urllib import request
 
 import telebot  # pyTelegramBotAPI
 import xlrd  # read old version .xlsx files
 from openpyxl import Workbook  # create and save .xlsx file
-from telebot.types import InputFile
 
 from settings import token, users_id
 
@@ -78,6 +76,8 @@ def write_vehicle_inspection_driver_table(time_car_list: list[list[str]], name: 
 # TELEBOT ##############################################################################################################
 
 bot = telebot.TeleBot(token)
+xlsx_file = None
+csv_files = []
 
 
 def private_access():
@@ -97,8 +97,7 @@ def private_access():
     return deco_restrict
 
 
-# Handle '/start' and '/help'
-@bot.message_handler(commands=['help', 'start'])
+@bot.message_handler(commands=['help'])
 @private_access()
 def send_welcome(message):
     bot.reply_to(message, """\
@@ -107,25 +106,10 @@ def send_welcome(message):
 """)
 
 
-# Handle sent .xlsx document
-@bot.message_handler(func=lambda message: True, content_types=['document'])
-@private_access()
-def default_command(message):
-    file_name = message.document.file_name
-    file_extension = file_name.split(".")[-1]
-    if file_extension.lower() != "xlsx":
-        bot.send_message(message.chat.id, f"Файл {file_name} не является файлом xlsx, загрузите правильный файл")
-        return
-    bot.send_message(message.chat.id, f"Файл {file_name} получен")
-
-    # open file
-    file_info = bot.get_file(message.document.file_id)
-    xlsx_path = f'https://api.telegram.org/file/bot{token}/{file_info.file_path}'
-    file, headers = request.urlretrieve(xlsx_path)
-
+# Проверка даты ТО
+def check_date(file, message):
     book = xlrd.open_workbook(file)
     sheet = book.sheet_by_index(0)
-
     # check_correct_date
     data_in_file = str((sheet.cell_value(0, 2)).split()[0])
     if data_in_file != tomorrow.strftime("%d.%m.%Y"):
@@ -133,22 +117,95 @@ def default_command(message):
                          "‼️❗️‼️❗️‼️❗️‼️\nДата ТО в файле и завтрашняя дата не совпадают. "
                          "Проверьте правильно ли скачан файл")
 
-    # make result file
-    res = get_time_car_list(sheet)
-    write_vehicle_inspection_driver_table(res, "")
 
-    # return result file
-    bot.send_document(
-        message.chat.id,
-        InputFile("result.xlsx"))
+# Функция для сохранения файла на сервере
+def save_file(message, filename):
+    file_info = bot.get_file(message.document.file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+    with open(filename, 'wb') as new_file:
+        new_file.write(downloaded_file)
+    return filename
+
+
+def clear_files():
+    global xlsx_file, csv_files
+    xlsx_file = None
+    csv_files.clear()
+
+
+# Handle sent .xlsx and .csv documents
+@bot.message_handler(func=lambda message: True, content_types=['document'])
+@private_access()
+def default_command(message):
+    global xlsx_file, csv_files
+
+    # Прием XLSX, проверка что файл только один
+    if message.document.mime_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        if xlsx_file is None:
+            xlsx_file = save_file(message, 'file.xlsx')
+            bot.send_message(message.chat.id, 'XLSX done.')
+        else:
+            bot.send_message(message.chat.id, '❗️Отправлено несколько XLSX - файлов.')
+            clear_files()
+            return
+
+    # Прием csv
+    elif message.document.mime_type == 'text/csv':
+        filename = f'file_{len(csv_files) + 1}.csv'  # Используем уникальное имя файла
+        csv_files.append(save_file(message, filename))
+        bot.send_message(message.chat.id, 'CSV done.')
+
+
+# Функция для обработки файлов
+def process_files():
+    global xlsx_file, csv_files
+    if xlsx_file is not None and len(csv_files) > 0:
+        # Прочитать XLSX-файл и обработать его
+        print('process_files success', xlsx_file)
+
+        # Обработать CSV-файлы
+        for csv_file in csv_files:
+            print(23, csv_file)
+            # Здесь можно выполнить дополнительные операции с данными
+
+        # Очистить переменные после обработки файлов
+        xlsx_file = None
+        csv_files.clear()
+    else:
+        print('Недостаточно файлов для обработки. \n Попробуйте загрузить еще раз')
+
+
+
+
+    clear_files()
+
+
+# Обработчик команды /process
+@bot.message_handler(commands=['process', 'start'])
+@private_access()
+def process_message(message):
+    process_files()
+    # сделать
+
+
+    bot.send_message(message.chat.id, 'Файлы обработаны.')
+
+
+@bot.message_handler(commands=['clear'])
+@private_access()
+def process_message(message):
+    clear_files()
+    bot.send_message(message.chat.id, 'Clear done!')
 
 
 def run_bot():
     bot.polling()
 
+
 def stop_bot():
+    clear_files()
     bot.stop_polling()
+
 
 if __name__ == "__main__":
     run_bot()
-
