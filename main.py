@@ -53,6 +53,18 @@ def get_time_car_list(sheet: Workbook.active) -> list[list[str]]:
     return result_list
 
 
+def csv_processing(file):
+    """ """
+    # необходимые данные, которые надо получить из csv (с обозначение столбцов, начиная с 0)
+    # ФИО (столбец 1),
+    # Статус == Работает (столбец 2),
+    # Телефон (столбец 4),
+    # Гос. номер (столбец 10),
+    # Прочее (столбец 15)
+
+    return
+
+
 def write_vehicle_inspection_driver_table(time_car_list: list[list[str]], name: str) -> None:
     # create file
     out_book = Workbook()
@@ -174,9 +186,6 @@ def process_files():
     else:
         print('Недостаточно файлов для обработки. \n Попробуйте загрузить еще раз')
 
-
-
-
     clear_files()
 
 
@@ -200,6 +209,14 @@ def process_message(message):
     bot.send_message(message.chat.id, 'Файлы обработаны.')
 
 
+# Обработчик для кнопки "обработать"
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    if message.text == 'обработать':
+        process_files()
+        bot.send_message(message.chat.id, 'Файлы обработаны.')
+
+
 @bot.message_handler(commands=['clear'])
 @private_access()
 def process_message(message):
@@ -210,6 +227,9 @@ def process_message(message):
 def run_bot():
     bot.polling()
 
+
+def process_bot():
+    pass
 
 def stop_bot():
     clear_files()

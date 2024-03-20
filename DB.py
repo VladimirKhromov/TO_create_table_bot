@@ -1,40 +1,67 @@
 import sqlite3
 
-# Создание базы
-# Удаление базы
-
-# Заполнение таблицы TO
-# Заполнение таблицы Drivers
+DB_file = 'drivers.db'
 
 # Создание общей таблицы
 
 connect = sqlite3.connect(':memory:')
 
+
 def create_DB():
-    with
+    with sqlite3.connect(DB_file) as connect:
+        cursor = connect.cursor()
 
-# Установить соединение с базой данных в памяти
-connect = sqlite3.connect(':memory:')
+        cursor.execute("""CREATE TABLE IF NOT EXISTS drivers(
+        driver_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        time VARCHAR,
+        car VARCHAR,
+        name_driver VARCHAR,
+        phone_driver VARCHAR,       
+        info_driver VARCHAR
+        )""")
+        cursor.execute("DELETE FROM drivers")
 
-# Создать курсор для выполнения SQL-запросов
-cursor = connect.cursor()
+        cursor.execute("""CREATE TABLE IF NOT EXISTS to_drivers(
+        to_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date VARCHAR, 
+        time VARCHAR,
+        car VARCHAR,
+        name_driver VARCHAR,
+        phone_driver VARCHAR,
+        logist_name VARCHAR,
+        date_call VARCHAR,
+        info_driver VARCHAR
+        )""")
 
-# Создать таблицу
-cursor.execute('''CREATE TABLE users
-                  (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)''')
+        cursor.execute("DELETE FROM to_drivers")
 
-# Вставить данные в таблицу
-cursor.execute("INSERT INTO users (name, age) VALUES (?, ?)", ('Alice', 30))
-cursor.execute("INSERT INTO users (name, age) VALUES (?, ?)", ('Bob', 25))
+        connect.commit()
 
-# Сохранить изменения (хотя это необязательно для базы данных в памяти)
-connect.commit()
 
-# Выполнить запрос к базе данных
-cursor.execute("SELECT * FROM users")
-rows = cursor.fetchall()
-for row in rows:
-    print(row)
+def clear_DB():
+    with sqlite3.connect(DB_file) as connect:
+        cursor = connect.cursor()
+        cursor.execute("DELETE FROM drivers")
+        cursor.execute("DELETE FROM to_drivers")
+        connect.commit()
 
-# Закрыть соединение
-connect.close()
+
+def update_drivers_table(car, name_driver, phone_driver, info_driver):
+    with sqlite3.connect(DB_file) as connect:
+        cursor = connect.cursor()
+        queue = f"INSERT INTO drivers (car, name_driver, phone_driver, info_driver) VALUES {car}, {name_driver}, {phone_driver}, {info_driver}"
+        cursor.execute(queue)
+        connect.commit()
+
+
+def update_to_drivers_table(date, time, car, name_driver, phone_driver, logist_name, date_call, info_driver):
+    with sqlite3.connect(DB_file) as connect:
+        cursor = connect.cursor()
+        queue = f"""INSERT INTO to_drivers (date, time, car, name_driver, phone_driver, logist_name, date_call, info_driver) VALUES {date}, {time}, {car}, {name_driver}, {phone_driver}, {logist_name}, {date_call}, {info_driver}"""
+        cursor.execute(queue)
+        connect.commit()
+
+
+if __name__ == "__main__":
+    create_DB()
+    clear_DB()

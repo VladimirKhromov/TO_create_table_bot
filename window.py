@@ -4,20 +4,24 @@ import threading
 from tkinter import *
 from tkinter import ttk
 
-from main import run_bot, stop_bot
+from main import run_bot, process_bot, stop_bot
 
 # root
 root = Tk()
 root.title("Телеграм-Бот обработки файлов ТО")
 root.geometry("450x250")
-root.iconbitmap('icon.ico')
+
+
+# root.iconbitmap('icon.ico')
 
 # pressing button
-def start_button():
-    if button_run["text"] != "Запущен":
-        button_run["text"] = "Запущен"
-        bot_thread = threading.Thread(target=run_bot)
-        bot_thread.start()
+
+def process():
+    if button_run["text"] != "Обработка":
+        button_run["text"] = "Обработка"
+        bot_process = threading.Thread(target=process_bot)
+        bot_process.start()
+
 
 def quit_button():
     stop_bot()
@@ -33,15 +37,20 @@ label_text = """
 
 # window's buttons and labels
 
-button_run = ttk.Button(text="Запустить", command=start_button)
+button_run = ttk.Button(text="Обработать Файлы", command=process)
 button_run.pack(anchor="n", pady=10)
 
 label = ttk.Label(text=label_text)
 label.pack(anchor="center")
 
 button_quit = ttk.Button(text="Выход", command=quit_button)
-button_quit.pack(anchor="s", pady=50)
+button_quit.pack(anchor="s", pady=10)
 
 # run
 if __name__ == "__main__":
-    root.mainloop()
+    try:
+        bot_thread = threading.Thread(target=run_bot)
+        bot_thread.start()
+        root.mainloop()
+    finally:
+        stop_bot()
